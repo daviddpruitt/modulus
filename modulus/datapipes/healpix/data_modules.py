@@ -571,6 +571,7 @@ class TimeSeriesDataModule:
                 dataset = dataset.sel(
                     channel_in=self.input_variables,
                     channel_out=self.output_variables,
+                    channel_c=list(self.constants.values()),
                 )
             else:
                 dataset = open_fn(
@@ -602,6 +603,11 @@ class TimeSeriesDataModule:
                     dataset_name=self.dataset_name,
                     constants=self.constants is not None,
                     batch_size=self.batch_size,
+                )
+                dataset = dataset.sel(
+                    channel_in=self.input_variables,
+                    channel_out=self.output_variables,
+                    channel_c=list(self.constants.values()),
                 )
             else:
                 dataset = open_fn(
@@ -991,6 +997,7 @@ class CoupledTimeSeriesDataModule(TimeSeriesDataModule):
                 dataset = dataset.sel(
                     channel_in=self.input_variables + coupled_variables,
                     channel_out=self.output_variables,
+                    channel_c=list(self.constants.values()),
                 )
             else:
                 dataset = open_fn(
@@ -1022,6 +1029,11 @@ class CoupledTimeSeriesDataModule(TimeSeriesDataModule):
                     dataset_name=self.dataset_name,
                     constants=self.constants is not None,
                     batch_size=self.batch_size,
+                )
+                dataset = dataset.sel(
+                    channel_in=self.input_variables + coupled_variables,
+                    channel_out=self.output_variables,
+                    channel_c=list(self.constants.values()),
                 )
             else:
                 dataset = open_fn(
