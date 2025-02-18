@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ruff: noqa
+
+from .encoders import Conv2dSerializable
 from .utils import weight_init
 from .layers import (
     AttentionOp,
@@ -36,3 +38,4 @@ from .preconditioning import (
     VEPrecond_dfsr_cond,
     VEPrecond_dfsr,
 )
+from .sfm_preconditioning import SFMPrecondSR, SFMPrecondEmpty
