@@ -122,7 +122,7 @@ def main(cfg: DictConfig) -> None:
     
     # Instantiate the model and move to device.
     if cfg.model.name not in (
-        "regression", "sfm_encoder", "sfm", "sfm_two_stage",
+        "sfm_encoder", "sfm", "sfm_two_stage",
     ):
         raise ValueError("Invalid model")
     model_args = {  # default parameters for all networks
@@ -130,81 +130,73 @@ def main(cfg: DictConfig) -> None:
         "img_resolution": list(img_shape),
         "use_fp16": fp16,
     }
+    ## remaining defaults are what we want
     standard_model_cfgs = {  # default parameters for different network types
-        "regression": {
-            "img_channels": 4,
-            "N_grid_channels": 4,
-            "embedding_type": "zero",
-        },
         "sfm": {
-            "img_channels": img_out_channels,
             "gridtype": "sinusoidal",
             "N_grid_channels": 4,
-        }
+        },
+        "sfm_two_stage": {
+            "gridtype": "sinusoidal",
+            "N_grid_channels": 4,
+        },
+        "sfm_encoder": {}, # empty preconditioner
     }
 
     model_args.update(standard_model_cfgs[cfg.model.name])
     if hasattr(cfg.model, "model_args"):  # override defaults from config file
         model_args.update(OmegaConf.to_container(cfg.model.model_args))
     
-    if cfg.model.name == "regression":
-        model = SongUNet(
-            img_in_channels=img_in_channels + model_args["N_grid_channels"],
-            **model_args,
-        )
-    elif cfg.model.name in "sfm_encoder":
-        model = SFMPrecondEmpty()
+    if cfg.model.name in "sfm_encoder":
+        denoiser = SFMPrecondEmpty()
     else: # sfm or sfm_two_stage
-        model = SFMPrecondSR(
+        denoiser = SFMPrecondSR(
             img_in_channels=img_in_channels + model_args["N_grid_channels"],
             **model_args,
         )
 
-    model.train().requires_grad_(True).to(dist.device)
+    denoiser.train().requires_grad_(True).to(dist.device)
 
     # Enable distributed data parallel if applicable
     if dist.world_size > 1:
-        model = DistributedDataParallel(
-            model,
+        denoiser = DistributedDataParallel(
+            denoiser,
             device_ids=[dist.local_rank],
             broadcast_buffers=True,
             output_device=dist.device,
             find_unused_parameters=dist.find_unused_parameters,
         )
 
-    # Load the regression checkpoint if applicable
-    if hasattr(cfg.training.io, "regression_checkpoint_path"):
-        regression_checkpoint_path = to_absolute_path(
-            cfg.training.io.regression_checkpoint_path
+    # Create or load the encoder:
+    if cfg.model.name in ["sfm", "sfm_encoder"]:
+        encoder_net = get_encoder(cfg)
+        encoder_net.train().requires_grad_(True).to(device)
+        logger0.success("Constructed encoder network succesfully")
+    else: # "sfm_two_stage"
+        if not hasattr(cfg.training.io, "encoder_checkpoint_path"):
+            raise KeyError("Need to provide encoder_checkpoint_path when using sfm_two_stage")
+        encoder_checkpoint_path = to_absolute_path(
+            cfg.training.io.encoder_checkpoint_path
         )
-        if not os.path.exists(regression_checkpoint_path):
+        if not os.path.exists(encoder_checkpoint_path):
             raise FileNotFoundError(
-                f"Expected this regression checkpoint but not found: {regression_checkpoint_path}"
+                f"Expected this encoder checkpoint but not found: {encoder_checkpoint_path}"
             )
-        regression_net = Module.from_checkpoint(regression_checkpoint_path)
-        regression_net.eval().requires_grad_(False).to(dist.device)
-        logger0.success("Loaded the pre-trained regression model")
+        encoder_net = Module.from_checkpoint(encoder_checkpoint_path)
+        encoder_net.eval().requires_grad_(False).to(device)
+        logger0.success("Loaded the pre-trained encoder network")
 
-    # Instantiate the loss function
-    if cfg.model.name == "diffusion":
-        loss_fn = ResLoss(
-            regression_net=regression_net,
-            img_shape_x=img_shape[1],
-            img_shape_y=img_shape[0],
-            patch_shape_x=patch_shape[1],
-            patch_shape_y=patch_shape[0],
-            patch_num=patch_num,
-            hr_mean_conditioning=cfg.model.hr_mean_conditioning,
-        )
-    elif cfg.model.name == "regression":
-        loss_fn = RegressionLoss()
-    elif cfg.model.name in ("sfm", "sfm_two_stage"):
+
+    # Instantiate the loss function(s)
+    if cfg.model.name in ("sfm", "sfm_two_stage"):
         loss_fn = SFMLoss(
             encoder_loss_type = cfg.model.encoder_loss_type,
             encoder_loss_weight = cfg.model.encoder_loss_weight,
             sigma_min = cfg.model.sigma_min,
-            sigma_data = 0.5,
         )
+        # with sfm the encoder and diffusion model are trained together
+        if cfg.model.name == "sfm":
+            loss_fn_encoder = SFMEncoderLoss(encoder_loss_type='l2')
     elif cfg.model.name == "sfm_encoder":
         loss_fn = SFMEncoderLoss(
             encoder_loss_type = cfg.model.encoder_loss_type,
@@ -213,10 +205,10 @@ def main(cfg: DictConfig) -> None:
         raise NotImplementedError(f"Model {cfg.model.name} not supported.")
 
     # Instantiate the optimizer
-    if encoder_net is not None and cfg.task != "sfm_two_stage":
-        params = list(denoiser_net.parameters()) + list(encoder_net.parameters())
+    if cfg.task == "sfm_two_stage":
+        params = denoiser_net.parameters()
     else:
-        params = model.parameters()
+        params = list(denoiser_net.parameters()) + list(encoder_net.parameters())
 
     optimizer = torch.optim.Adam(
         params=params, lr=cfg.training.hp.lr, betas=[0.9, 0.999], eps=1e-8
@@ -252,6 +244,230 @@ def main(cfg: DictConfig) -> None:
     ############################################################################
     #                            MAIN TRAINING LOOP                            #
     ############################################################################
+
+    logger0.info(f"Training for {cfg.training.hp.training_duration} images...")
+    done = False
+
+    # init variables to monitor running mean of average loss since last periodic
+    average_loss_running_mean = 0
+    n_average_loss_running_mean = 1
+
+    while not done:
+        tick_start_nimg = cur_nimg
+        tick_start_time = time.time()
+        # Compute & accumulate gradients
+        optimizer.zero_grad(set_to_none=True)
+        loss_accum = 0
+        for _ in range(num_accumulation_rounds):
+            img_clean, img_lr, labels = next(dataset_iterator)
+            img_clean = img_clean.to(dist.device).to(torch.float32).contiguous()
+            img_lr = img_lr.to(dist.device).to(torch.float32).contiguous()
+            labels = labels.to(dist.device).contiguous()
+            with torch.autocast("cuda", dtype=amp_dtype, enabled=enable_amp):
+                loss = loss_fn(
+                    denoiser_net=ddp_denoiser,
+                    encoder_net=ddp_encoder,
+                    img_clean=img_clean,
+                    img_lr=img_lr,
+                    labels=labels,
+                    augment_pipe=None,
+                )
+            loss = loss.sum() / batch_size_per_gpu
+            loss_accum += loss / num_accumulation_rounds
+            loss.backward()
+
+        loss_sum = torch.tensor([loss_accum], device=dist.device)
+        if dist.world_size > 1:
+            torch.distributed.barrier()
+            torch.distributed.all_reduce(loss_sum, op=torch.distributed.ReduceOp.SUM)
+        average_loss = (loss_sum / dist.world_size).cpu().item()
+
+        # update running mean of average loss since last periodic task
+        average_loss_running_mean += (
+            average_loss - average_loss_running_mean
+        ) / n_average_loss_running_mean
+        n_average_loss_running_mean += 1
+
+        if dist.rank == 0:
+            writer.add_scalar("training_loss", average_loss, cur_nimg)
+            writer.add_scalar(
+                "training_loss_running_mean", average_loss_running_mean, cur_nimg
+            )
+
+        ptt = is_time_for_periodic_task(
+            cur_nimg,
+            cfg.training.io.print_progress_freq,
+            done,
+            cfg.training.hp.total_batch_size,
+            dist.rank,
+            rank_0_only=True,
+        )
+        if ptt:
+            # reset running mean of average loss
+            average_loss_running_mean = 0
+            n_average_loss_running_mean = 1
+
+        # Update weights.
+        lr_rampup = cfg.training.hp.lr_rampup  # ramp up the learning rate
+        for g in optimizer.param_groups:
+            if lr_rampup > 0:
+                g["lr"] = cfg.training.hp.lr * min(cur_nimg / lr_rampup, 1)
+            if cur_nimg >= lr_rampup:
+                g["lr"] *= cfg.training.hp.lr_decay ** ((cur_nimg - lr_rampup) // 5e6)
+            current_lr = g["lr"]
+            if dist.rank == 0:
+                writer.add_scalar("learning_rate", current_lr, cur_nimg)
+
+        # clear any nans from the denoiser
+        for param in denoiser_net.parameters():
+            if param.grad is not None:
+                torch.nan_to_num(
+                    param.grad, nan=0, posinf=1e5, neginf=-1e5, out=param.grad
+                )
+        handle_and_clip_gradients(
+            denoiser_net, grad_clip_threshold=cfg.training.hp.grad_clip_threshold
+        )
+        handle_and_clip_gradients(
+            encoder_net, grad_clip_threshold=cfg.training.hp.grad_clip_threshold
+        )
+        optimizer.step()
+
+        # Update EMA.
+        ema_halflife_nimg = cfg.ema_halflife_kimg * 1000
+        if cfg.ema_rampup_ratio is not None:
+            ema_halflife_nimg = min(ema_halflife_nimg, cur_nimg * cfg.ema_rampup_ratio)
+        ema_beta = 0.5 ** (cfg.batch_size_global / max(ema_halflife_nimg, 1e-8))
+        for p_ema, p_net in zip(denoiser_ema.parameters(), denoiser_net.parameters()):
+            p_ema.copy_(p_net.detach().lerp(p_ema, ema_beta))
+
+        cur_nimg += cfg.training.hp.total_batch_size
+        done = cur_nimg >= cfg.training.hp.training_duration
+
+        # Validation
+        if validation_dataset_iterator is not None:
+            valid_loss_accum = 0
+            if is_time_for_periodic_task(
+                cur_nimg,
+                cfg.training.io.validation_freq,
+                done,
+                cfg.training.hp.total_batch_size,
+                dist.rank,
+            ):
+                rmse_encoder_valid_accum_mean = 0
+                with torch.no_grad():
+                    for _ in range(cfg.training.io.validation_steps):
+                        img_clean_valid, img_lr_valid, labels_valid = next(
+                            validation_dataset_iterator
+                        )
+
+                        img_clean_valid = (
+                            img_clean_valid.to(dist.device)
+                            .to(torch.float32)
+                            .contiguous()
+                        )
+                        img_lr_valid = (
+                            img_lr_valid.to(dist.device).to(torch.float32).contiguous()
+                        )
+                        labels_valid = labels_valid.to(dist.device).contiguous()
+                        loss_valid = loss_fn(
+                            denoiser_net=ddp_denoiser,
+                            encoder_net=ddp_encoder,
+                            img_clean=img_clean_valid,
+                            img_lr=img_lr_valid,
+                            labels=labels_valid,
+                            augment_pipe=None,
+                        )
+                        loss_valid = (
+                            (loss_valid.sum() / batch_size_per_gpu).cpu().item()
+                        )
+                        valid_loss_accum += (
+                            loss_valid / cfg.training.io.validation_steps
+                        )
+
+                        if cfg.model.name == "sfm":
+                            rmse_encoder_valid = loss_fn_encoder(
+                                denoiser_net=ddp_denoiser,
+                                encoder_net=ddp_encoder,
+                                img_clean=img_clean_valid,
+                                img_lr=img_lr_valid,
+                                labels=labels_valid,
+                                augment_pipe=augment_pipe,
+                                loggers=None
+                            )
+                            rmse_encoder_valid_accum_mean += rmse_encoder_valid.mean((0,2,3)) / cfg.validation_steps
+
+                    valid_loss_sum = torch.tensor(
+                        [valid_loss_accum], device=dist.device
+                    )
+                    if dist.world_size > 1:
+                        torch.distributed.barrier()
+                        torch.distributed.all_reduce(
+                            valid_loss_sum, op=torch.distributed.ReduceOp.SUM
+                        )
+                    average_valid_loss = valid_loss_sum / dist.world_size
+                    if dist.rank == 0:
+                        writer.add_scalar(
+                            "validation_loss", average_valid_loss, cur_nimg
+                        )
+
+                if dist.rank == 0:
+                    if cfg.model.name == "sfm" and cfg.model.sfm['sigma_max']['learnable']:
+                        denoiser_net.update_sigma_max(rmse_encoder_valid_accum_mean)
+
+
+        if is_time_for_periodic_task(
+            cur_nimg,
+            cfg.training.io.print_progress_freq,
+            done,
+            cfg.training.hp.total_batch_size,
+            dist.rank,
+            rank_0_only=True,
+        ):
+            # Print stats if we crossed the printing threshold with this batch
+            tick_end_time = time.time()
+            fields = []
+            fields += [f"samples {cur_nimg:<9.1f}"]
+            fields += [f"training_loss {average_loss:<7.2f}"]
+            fields += [f"training_loss_running_mean {average_loss_running_mean:<7.2f}"]
+            fields += [f"learning_rate {current_lr:<7.8f}"]
+            fields += [f"total_sec {(tick_end_time - start_time):<7.1f}"]
+            fields += [f"sec_per_tick {(tick_end_time - tick_start_time):<7.1f}"]
+            fields += [
+                f"sec_per_sample {((tick_end_time - tick_start_time) / (cur_nimg - tick_start_nimg)):<7.2f}"
+            ]
+            fields += [
+                f"cpu_mem_gb {(psutil.Process(os.getpid()).memory_info().rss / 2**30):<6.2f}"
+            ]
+            fields += [
+                f"peak_gpu_mem_gb {(torch.cuda.max_memory_allocated(dist.device) / 2**30):<6.2f}"
+            ]
+            fields += [
+                f"peak_gpu_mem_reserved_gb {(torch.cuda.max_memory_reserved(dist.device) / 2**30):<6.2f}"
+            ]
+            logger0.info(" ".join(fields))
+            torch.cuda.reset_peak_memory_stats()
+
+        # Save checkpoints
+        if dist.world_size > 1:
+            torch.distributed.barrier()
+        if is_time_for_periodic_task(
+            cur_nimg,
+            cfg.training.io.save_checkpoint_freq,
+            done,
+            cfg.training.hp.total_batch_size,
+            dist.rank,
+            rank_0_only=True,
+        ):
+            save_checkpoint(
+                path=checkpoint_dir,
+                models=[denoiser_net, encoder_net],
+                optimizer=optimizer,
+                epoch=cur_nimg,
+            )
+
+    # Done.
+    logger0.info("Training Completed.")
+    
 
 if __name__ == "__main__":
     main()
