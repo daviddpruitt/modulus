@@ -32,21 +32,21 @@ class SFMLoss:
         sigma_min: Union[List[float], float] = 0.002,
         sigma_data: float = 0.5,
     ):
-    """
-    Loss function corresponding to Stochastic Flow matching
+        """
+        Loss function corresponding to Stochastic Flow matching
 
-    Parameters
-    ----------
-    encoder_loss_type: str
-        Type of loss to use ["l1", "l2", None]
-    encoder_loss_weight: float
-        Regularizer loss weights, by defaults 0.1.
-    sigma_min: Union[List[float], float]
-        Minimum value of noise sigma, default 2e-3
-        Protects against values near zero that result in loss explosion.
-    sigma_data: float
-        EDM weighting, default 0.5
-    """
+        Parameters
+        ----------
+        encoder_loss_type: str
+            Type of loss to use ["l1", "l2", None]
+        encoder_loss_weight: float
+            Regularizer loss weights, by defaults 0.1.
+        sigma_min: Union[List[float], float]
+            Minimum value of noise sigma, default 2e-3
+            Protects against values near zero that result in loss explosion.
+        sigma_data: float
+            EDM weighting, default 0.5
+        """
         self.encoder_loss_type = encoder_loss_type
         self.encoder_loss_weight = encoder_loss_weight
         self.sigma_min = sigma_min
@@ -56,30 +56,30 @@ class SFMLoss:
             raise ValueError(f"encoder_loss_weight is {self.encoder_loss_weight} but encoder_loss_type is None")
 
     def __call__(self, models, img_clean, img_lr, labels, augment_pipe):
-    """
-    Calculate the loss for corresponding to stochastic flow matching
+        """
+        Calculate the loss for corresponding to stochastic flow matching
 
-    Parameters
-    ----------
-        models: [torch.Tensor, torch.Tensor]
-            The denoiser and encoder networks making the predictions
-            Stored as [denoiser, encoder]
-        img_clean: torch.Tensor
-            Input images (high resolution) to the neural network.
-        img_lr: torch.Tensor
-            Input images (low resolution) to the neural network.
-        labels: torch.Tensor
-            Ground truth labels for the input images.
-        augment_pipe: callable, optional
-            An optional data augmentation function that takes images as input and
-            returns augmented images. If not provided, no data augmentation is applied.
+        Parameters
+        ----------
+            models: [torch.Tensor, torch.Tensor]
+                The denoiser and encoder networks making the predictions
+                Stored as [denoiser, encoder]
+            img_clean: torch.Tensor
+                Input images (high resolution) to the neural network.
+            img_lr: torch.Tensor
+                Input images (low resolution) to the neural network.
+            labels: torch.Tensor
+                Ground truth labels for the input images.
+            augment_pipe: callable, optional
+                An optional data augmentation function that takes images as input and
+                returns augmented images. If not provided, no data augmentation is applied.
 
-    Returns
-    -------
-        torch.Tensor
-        A tensor representing the combined loss calculated based on the flow matching
-        encoder and denoiser networks
-    """
+        Returns
+        -------
+            torch.Tensor
+            A tensor representing the combined loss calculated based on the flow matching
+            encoder and denoiser networks
+        """
         denoiser_net, encoder_net = models
         #uniformly samples from 0 to 1 in torch
         if isinstance(denoiser_net, torch.nn.parallel.DistributedDataParallel):
@@ -155,43 +155,43 @@ class SFMEncoderLoss:
         encoder_loss_type: str,
         **kwargs
     ):
-    """
-    Loss function corresponding to Stochastic Flow matching for the encoder portion
+        """
+        Loss function corresponding to Stochastic Flow matching for the encoder portion
 
-    Parameters
-    ----------
-    encoder_loss_type: str
-        Type of loss to use ["l1", "l2", None]
-    """
+        Parameters
+        ----------
+        encoder_loss_type: str
+            Type of loss to use ["l1", "l2", None]
+        """
         if not encoder_loss_type in ['l1', 'l2']:
             raise ValueError(f"encoder_loss_type should be either l1 or l2 not {encoder_loss_type}")
         self.encoder_loss_type = encoder_loss_type
 
     def __call__(self, denoiser_net, encoder_net, img_clean, img_lr, labels, augment_pipe):
         """
-    Calculate the loss for the enoder used in stochastic flow matching
+        Calculate the loss for the enoder used in stochastic flow matching
 
-    Parameters
-    ----------
-        models: [torch.Tensor, torch.Tensor]
-            The denoiser and encoder networks making the predictions
-            Stored as [denoiser, encoder]
-        img_clean: torch.Tensor
-            Input images (high resolution) to the neural network.
-        img_lr: torch.Tensor
-            Input images (low resolution) to the neural network.
-        labels: torch.Tensor
-            Ground truth labels for the input images.
-        augment_pipe: callable, optional
-            An optional data augmentation function that takes images as input and
-            returns augmented images. If not provided, no data augmentation is applied.
+        Parameters
+        ----------
+            models: [torch.Tensor, torch.Tensor]
+                The denoiser and encoder networks making the predictions
+                Stored as [denoiser, encoder]
+            img_clean: torch.Tensor
+                Input images (high resolution) to the neural network.
+            img_lr: torch.Tensor
+                Input images (low resolution) to the neural network.
+            labels: torch.Tensor
+                Ground truth labels for the input images.
+            augment_pipe: callable, optional
+                An optional data augmentation function that takes images as input and
+                returns augmented images. If not provided, no data augmentation is applied.
 
-    Returns
-    -------
-        torch.Tensor
-        A tensor representing the loss calculated based on the encoder's
-        predictions
-    """
+        Returns
+        -------
+            torch.Tensor
+            A tensor representing the loss calculated based on the encoder's
+            predictions
+        """
         x_1 = img_clean
         x_low = img_lr
 

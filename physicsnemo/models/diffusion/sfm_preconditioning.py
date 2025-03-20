@@ -65,28 +65,28 @@ class SFMPrecondSR(Module):
         use_x_low_conditioning=None,
         **model_kwargs,
     ) -> None:
-    """
-    preconditioning based on the Stochastic Flow Model approach
+        """
+        preconditioning based on the Stochastic Flow Model approach
 
-    Parameters
-    ----------
-    img_resolution : Union[List[int], int]
-        Image resolution.
-    img_in_channels : int
-        Number of input color channels.
-    img_out_channels : int
-        Number of output color channels.
-    use_fp16 : bool
-        Execute the underlying model at FP16 precision?, by default False.
-    sigma_max : float
-        Maximum supported noise level, by default inf.
-    sigma_data : float
-        Expected standard deviation of the training data, by default 0.5.
-    model_type :str
-        Class name of the underlying model, by default "SongUNetPosEmbd".
-    **model_kwargs : dict
-        Keyword arguments for the underlying model.
-    """
+        Parameters
+        ----------
+        img_resolution : Union[List[int], int]
+            Image resolution.
+        img_in_channels : int
+            Number of input color channels.
+        img_out_channels : int
+            Number of output color channels.
+        use_fp16 : bool
+            Execute the underlying model at FP16 precision?, by default False.
+        sigma_max : float
+            Maximum supported noise level, by default inf.
+        sigma_data : float
+            Expected standard deviation of the training data, by default 0.5.
+        model_type :str
+            Class name of the underlying model, by default "SongUNetPosEmbd".
+        **model_kwargs : dict
+            Keyword arguments for the underlying model.
+        """
         Module.__init__(self, meta=SFMPrecondSRMetaData)
         model_class = getattr(network_module, model_type)
 
@@ -198,14 +198,14 @@ class SFMPrecondSR(Module):
 
 class SFMPrecondEmpty(Module):
     def __init__(self, **kwargs):
-    """"
-    A preconditioner that does nothing
+        """
+        A preconditioner that does nothing
 
-    Parameters
-    ----------
-    **model_kwargs : dict
-        Keyword arguments for the underlying model.
-    """"
+        Parameters
+        ----------
+        **model_kwargs : dict
+            Keyword arguments for the underlying model.
+        """
         super().__init__()
         self.param = torch.nn.Parameter(torch.tensor(0.0))
         self.label_dim = None
