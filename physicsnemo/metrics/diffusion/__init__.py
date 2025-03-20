@@ -15,7 +15,6 @@
 # limitations under the License.
 
 from .fid import calculate_fid_from_inception_stats
-from .SFM_samplers import SFM_encoder_sampler, SFM_Euler_sampler, SFM_Euler_sampler_Adaptive_Sigma
 from .loss import (
     EDMLoss,
     EDMLossSR,
@@ -26,3 +25,4 @@ from .loss import (
     VELoss_dfsr,
     VPLoss,
 )
+from .sfm_loss import SFMEncoderLoss, SFMLoss

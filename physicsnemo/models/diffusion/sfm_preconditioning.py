@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES.
+# SPDX-FileCopyrightText: Copyright (c) 2023 - 2025 NVIDIA CORPORATION & AFFILIATES.
 # SPDX-FileCopyrightText: All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -65,7 +65,7 @@ class SFMPrecondSR(Module):
         use_x_low_conditioning=None,
         **model_kwargs,
     ) -> None:
-    """"
+    """
     preconditioning based on the Stochastic Flow Model approach
 
     Parameters
@@ -86,7 +86,7 @@ class SFMPrecondSR(Module):
         Class name of the underlying model, by default "SongUNetPosEmbd".
     **model_kwargs : dict
         Keyword arguments for the underlying model.
-    """"
+    """
         Module.__init__(self, meta=SFMPrecondSRMetaData)
         model_class = getattr(network_module, model_type)
 

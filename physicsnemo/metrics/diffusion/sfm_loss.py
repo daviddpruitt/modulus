@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES.
+# SPDX-FileCopyrightText: Copyright (c) 2023 - 2025 NVIDIA CORPORATION & AFFILIATES.
 # SPDX-FileCopyrightText: All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -29,7 +29,7 @@ class SFMLoss:
         self,
         encoder_loss_type: str,
         encoder_loss_weight: float,
-        sigma_min: Union[List[float], float], = 0.002, # protects for values close to zero the explode the loss
+        sigma_min: Union[List[float], float] = 0.002,
         sigma_data: float = 0.5,
     ):
     """
@@ -42,7 +42,8 @@ class SFMLoss:
     encoder_loss_weight: float
         Regularizer loss weights, by defaults 0.1.
     sigma_min: Union[List[float], float]
-        Minimum value of noise sigma, default 2e-3.
+        Minimum value of noise sigma, default 2e-3
+        Protects against values near zero that result in loss explosion.
     sigma_data: float
         EDM weighting, default 0.5
     """
