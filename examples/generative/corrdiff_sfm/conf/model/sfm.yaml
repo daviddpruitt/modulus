@@ -19,14 +19,14 @@ name: sfm
 
 encoder_type: 1x1conv
 # Different encoder types for SFM: 1x1conv, songunet_s, songunet_xs, songunet_2xs, songunet_3xs
+encoder_loss_type: l2
+# Regularizer for the SFM model [null, l2, l1]
+encoder_loss_weight: 0.25
+# Regularizer weight for the SFM model [null, float]
 
 model_args:
   dropout: 0.13
   # Dropout probability
-  encoder_loss_type: l2
-  # Regularizer for the SFM model [null, l2, l1]
-  encoder_loss_weight: 0.25
-  # Regularizer weight for the SFM model [null, float]
   sigma_min: [0.002, 0.002, 0.002, 0.002] # for sampling
   # Minimum value of the noise sigma
   # Maximum value of the noise sigma

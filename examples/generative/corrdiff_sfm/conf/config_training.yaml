@@ -28,14 +28,14 @@ defaults:
   - dataset/cwb_train
 
   # Model
-  - model/sfm_encoder
-  #- model/sfm
+  #- model/sfm_encoder
+  - model/sfm
   #- model/sfm_two_stage
 
   # Training
-  - training/sfm_encoder
-  #- training/sfm
+  #- training/sfm_encoder
+  - training/sfm
   #- training/sfm_two_stage
 
   # Validation (comment out to disable validation)
-  - validation/sfm_encoder
+  - validation/cwb

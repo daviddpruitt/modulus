@@ -15,7 +15,7 @@
 # limitations under the License.
 
 from .deterministic_sampler import deterministic_sampler
-from .SFM_samplers import (
+from .sfm_samplers import (
     SFM_encoder_sampler,
     SFM_Euler_sampler,
     SFM_Euler_sampler_Adaptive_Sigma,

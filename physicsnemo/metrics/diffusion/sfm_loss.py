@@ -15,7 +15,7 @@
 # limitations under the License.
 
 import random
-from typing import Callable, Optional, Union
+from typing import Callable, Optional, Union, List
 import numpy as np
 import torch
 import torch.nn as nn

@@ -32,13 +32,13 @@ from modulus.metrics.diffusion import (
     RegressionLoss,
     ResLoss,
     SFMLoss,
-    SFMLossSigmaPerChannel,
+    #SFMLossSigmaPerChannel,
     SFMEncoderLoss,
 )
 from modulus.launch.logging import PythonLogger, RankZeroLoggingWrapper
 from modulus.launch.utils import load_checkpoint, save_checkpoint
 # Load utilities from corrdiff examples, make the corrdiff path absolute to avoid issues
-sys.path.append(sys.path.append(os.path.join(os.path.dirname(__file__), "../corrdiff"))  )
+#sys.path.append(sys.path.append(os.path.join(os.path.dirname(__file__), "../corrdiff"))  )
 from datasets.dataset import init_train_valid_datasets_from_config
 from helpers.train_helpers import (
     set_patch_shape,
@@ -48,6 +48,7 @@ from helpers.train_helpers import (
     handle_and_clip_gradients,
     is_time_for_periodic_task,
 )
+from helpers.sfm_utils import get_encoder
 
 
 # Train the CorrDiff model using the configurations in "conf/config_training.yaml"
@@ -116,8 +117,6 @@ def main(cfg: DictConfig) -> None:
     img_in_channels = dataset_channels
     img_shape = dataset.image_shape()
     img_out_channels = len(dataset.output_channels())
-    if cfg.model.hr_mean_conditioning:
-        img_in_channels += img_out_channels
     patch_shape = (None, None)
     
     # Instantiate the model and move to device.
@@ -148,19 +147,19 @@ def main(cfg: DictConfig) -> None:
         model_args.update(OmegaConf.to_container(cfg.model.model_args))
     
     if cfg.model.name in "sfm_encoder":
-        denoiser = SFMPrecondEmpty()
+        denoiser_net = SFMPrecondEmpty()
     else: # sfm or sfm_two_stage
-        denoiser = SFMPrecondSR(
+        denoiser_net = SFMPrecondSR(
             img_in_channels=img_in_channels + model_args["N_grid_channels"],
             **model_args,
         )
 
-    denoiser.train().requires_grad_(True).to(dist.device)
+    denoiser_net.train().requires_grad_(True).to(dist.device)
 
     # Enable distributed data parallel if applicable
     if dist.world_size > 1:
-        denoiser = DistributedDataParallel(
-            denoiser,
+        denoiser_net = DistributedDataParallel(
+            denoiser_net,
             device_ids=[dist.local_rank],
             broadcast_buffers=True,
             output_device=dist.device,
@@ -170,7 +169,7 @@ def main(cfg: DictConfig) -> None:
     # Create or load the encoder:
     if cfg.model.name in ["sfm", "sfm_encoder"]:
         encoder_net = get_encoder(cfg)
-        encoder_net.train().requires_grad_(True).to(device)
+        encoder_net.train().requires_grad_(True).to(dist.device)
         logger0.success("Constructed encoder network succesfully")
     else: # "sfm_two_stage"
         if not hasattr(cfg.training.io, "encoder_checkpoint_path"):
@@ -192,7 +191,7 @@ def main(cfg: DictConfig) -> None:
         loss_fn = SFMLoss(
             encoder_loss_type = cfg.model.encoder_loss_type,
             encoder_loss_weight = cfg.model.encoder_loss_weight,
-            sigma_min = cfg.model.sigma_min,
+            sigma_min = cfg.model.model_args.sigma_min,
         )
         # with sfm the encoder and diffusion model are trained together
         if cfg.model.name == "sfm":
@@ -205,7 +204,7 @@ def main(cfg: DictConfig) -> None:
         raise NotImplementedError(f"Model {cfg.model.name} not supported.")
 
     # Instantiate the optimizer
-    if cfg.task == "sfm_two_stage":
+    if cfg.model.name == "sfm_two_stage":
         params = denoiser_net.parameters()
     else:
         params = list(denoiser_net.parameters()) + list(encoder_net.parameters())

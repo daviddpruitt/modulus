@@ -1,4 +1,4 @@
-from modulus.models.diffusion import Conv2d
+import modulus.models.diffusion as diffusion
 from dataclasses import dataclass
 from typing import Union
 import nvtx
@@ -47,7 +47,7 @@ class Conv2dSerializable(Module):
         self.out_channels = out_channels
         self.in_channels = in_channels
         self.kernel_size = kernel_size
-        self.net = Conv2d(
+        self.net = diffusion.Conv2d(
             in_channels,
             out_channels,
             kernel_size,)
