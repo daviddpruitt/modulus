@@ -147,6 +147,7 @@ def main(cfg: DictConfig) -> None:
         model_args.update(OmegaConf.to_container(cfg.model.model_args))
     
     if cfg.model.name in "sfm_encoder":
+        # should this be set to no_grad?
         denoiser_net = SFMPrecondEmpty()
     else: # sfm or sfm_two_stage
         denoiser_net = SFMPrecondSR(
@@ -155,16 +156,7 @@ def main(cfg: DictConfig) -> None:
         )
 
     denoiser_net.train().requires_grad_(True).to(dist.device)
-
-    # Enable distributed data parallel if applicable
-    if dist.world_size > 1:
-        denoiser_net = DistributedDataParallel(
-            denoiser_net,
-            device_ids=[dist.local_rank],
-            broadcast_buffers=True,
-            output_device=dist.device,
-            find_unused_parameters=dist.find_unused_parameters,
-        )
+    denoiser_ema = copy.deepcopy(denoiser_net).eval().requires_grad_(False)
 
     # Create or load the encoder:
     if cfg.model.name in ["sfm", "sfm_encoder"]:
@@ -212,6 +204,24 @@ def main(cfg: DictConfig) -> None:
     optimizer = torch.optim.Adam(
         params=params, lr=cfg.training.hp.lr, betas=[0.9, 0.999], eps=1e-8
     )
+
+    # Enable distributed data parallel if applicable
+    if dist.world_size > 1:
+        denoiser_net = DistributedDataParallel(
+            denoiser_net,
+            device_ids=[dist.local_rank],
+            broadcast_buffers=True,
+            output_device=dist.device,
+            find_unused_parameters=dist.find_unused_parameters,
+        )
+        if cfg.model.name is not "sfm_two_stage":
+            encoder_net = DistributedDataParallel(
+                encoder_net,
+                device_ids=[dist.local_rank],
+                broadcast_buffers=True,
+                output_device=dist.device,
+                find_unused_parameters=dist.find_unused_parameters,
+            )
 
     # Record the current time to measure the duration of subsequent operations.
     start_time = time.time()
