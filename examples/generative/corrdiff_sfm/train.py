@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import os, time, psutil, hydra, torch, sys
 from hydra.utils import to_absolute_path
 from omegaconf import DictConfig, OmegaConf
@@ -146,7 +147,7 @@ def main(cfg: DictConfig) -> None:
     if hasattr(cfg.model, "model_args"):  # override defaults from config file
         model_args.update(OmegaConf.to_container(cfg.model.model_args))
     
-    if cfg.model.name in "sfm_encoder":
+    if cfg.model.name == "sfm_encoder":
         # should this be set to no_grad?
         denoiser_net = SFMPrecondEmpty()
     else: # sfm or sfm_two_stage
@@ -157,6 +158,11 @@ def main(cfg: DictConfig) -> None:
 
     denoiser_net.train().requires_grad_(True).to(dist.device)
     denoiser_ema = copy.deepcopy(denoiser_net).eval().requires_grad_(False)
+    ema_halflife_nimg = int(cfg.training.hp.ema * 1000000)
+    if hasattr(cfg.training.hp, "ema_rampup_ratio"):
+        ema_rampup_ratio = float(cfg.training.hp.ema_rampup_ratio)
+    else:
+        ema_rampup_ratio = 0.5
 
     # Create or load the encoder:
     if cfg.model.name in ["sfm", "sfm_encoder"]:
@@ -183,7 +189,7 @@ def main(cfg: DictConfig) -> None:
         loss_fn = SFMLoss(
             encoder_loss_type = cfg.model.encoder_loss_type,
             encoder_loss_weight = cfg.model.encoder_loss_weight,
-            sigma_min = cfg.model.model_args.sigma_min,
+            sigma_min = cfg.model.sigma_min,
         )
         # with sfm the encoder and diffusion model are trained together
         if cfg.model.name == "sfm":
@@ -214,7 +220,7 @@ def main(cfg: DictConfig) -> None:
             output_device=dist.device,
             find_unused_parameters=dist.find_unused_parameters,
         )
-        if cfg.model.name is not "sfm_two_stage":
+        if cfg.model.name != "sfm_two_stage":
             encoder_net = DistributedDataParallel(
                 encoder_net,
                 device_ids=[dist.local_rank],
@@ -274,8 +280,8 @@ def main(cfg: DictConfig) -> None:
             labels = labels.to(dist.device).contiguous()
             with torch.autocast("cuda", dtype=amp_dtype, enabled=enable_amp):
                 loss = loss_fn(
-                    denoiser_net=ddp_denoiser,
-                    encoder_net=ddp_encoder,
+                    denoiser_net=denoiser_net,
+                    encoder_net=encoder_net,
                     img_clean=img_clean,
                     img_lr=img_lr,
                     labels=labels,
@@ -342,10 +348,9 @@ def main(cfg: DictConfig) -> None:
         optimizer.step()
 
         # Update EMA.
-        ema_halflife_nimg = cfg.ema_halflife_kimg * 1000
-        if cfg.ema_rampup_ratio is not None:
-            ema_halflife_nimg = min(ema_halflife_nimg, cur_nimg * cfg.ema_rampup_ratio)
-        ema_beta = 0.5 ** (cfg.batch_size_global / max(ema_halflife_nimg, 1e-8))
+        if ema_rampup_ratio is not None:
+            ema_halflife_nimg = min(ema_halflife_nimg, cur_nimg * ema_rampup_ratio)
+        ema_beta = 0.5 ** (cfg.training.hp.total_batch_size / max(ema_halflife_nimg, 1e-8))
         for p_ema, p_net in zip(denoiser_ema.parameters(), denoiser_net.parameters()):
             p_ema.copy_(p_net.detach().lerp(p_ema, ema_beta))
 
@@ -379,8 +384,8 @@ def main(cfg: DictConfig) -> None:
                         )
                         labels_valid = labels_valid.to(dist.device).contiguous()
                         loss_valid = loss_fn(
-                            denoiser_net=ddp_denoiser,
-                            encoder_net=ddp_encoder,
+                            denoiser_net=denoiser_net,
+                            encoder_net=encoder_net,
                             img_clean=img_clean_valid,
                             img_lr=img_lr_valid,
                             labels=labels_valid,
@@ -395,8 +400,8 @@ def main(cfg: DictConfig) -> None:
 
                         if cfg.model.name == "sfm":
                             rmse_encoder_valid = loss_fn_encoder(
-                                denoiser_net=ddp_denoiser,
-                                encoder_net=ddp_encoder,
+                                denoiser_net=denoiser_net,
+                                encoder_net=encoder_net,
                                 img_clean=img_clean_valid,
                                 img_lr=img_lr_valid,
                                 labels=labels_valid,

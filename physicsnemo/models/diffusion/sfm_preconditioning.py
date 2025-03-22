@@ -59,6 +59,7 @@ class SFMPrecondSR(Module):
         img_in_channels: int,
         img_out_channels: int,
         use_fp16: bool = False,
+        N_grid_channels: int = 0,
         sigma_max: float = float("inf"),
         sigma_data: float = 0.5,
         model_type: str = "SongUNetPosEmbd",
@@ -94,6 +95,7 @@ class SFMPrecondSR(Module):
         self.sigma_data = sigma_data
         self.img_shape_y = img_resolution[0]
         self.img_shape_x = img_resolution[1]
+        self.use_x_low_conditioning = use_x_low_conditioning
 
         if type(sigma_max) == float:
             self.sigma_max_current = torch.tensor(sigma_max)
@@ -102,11 +104,12 @@ class SFMPrecondSR(Module):
             self.register_buffer('sigma_max_current', sigma_max_current)
 
         # SongUNetPosEmbd
-        del model_kwargs['encoder_type']
-        lr_channels =  img_in_channels if use_x_low_conditioning else 0
+        if 'encoder_type' in model_kwargs:
+            del model_kwargs['encoder_type']
+        lr_channels = img_in_channels if self.use_x_low_conditioning else 0
         self.denoiser_net = model_class(
             img_resolution=img_resolution,
-            in_channels=img_out_channels + lr_channels,
+            in_channels=img_out_channels + lr_channels + N_grid_channels,
             out_channels=img_out_channels,
             **model_kwargs)
 

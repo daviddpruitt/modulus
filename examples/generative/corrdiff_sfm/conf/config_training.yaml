@@ -23,6 +23,7 @@ hydra:
 
 # Get defaults
 defaults:
+  - _self_
 
   # Dataset
   - dataset/cwb_train

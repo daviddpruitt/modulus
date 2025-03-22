@@ -55,15 +55,16 @@ class SFMLoss:
         if self.encoder_loss_weight is not None and self.encoder_loss_type is None:
             raise ValueError(f"encoder_loss_weight is {self.encoder_loss_weight} but encoder_loss_type is None")
 
-    def __call__(self, models, img_clean, img_lr, labels, augment_pipe):
+    def __call__(self, denoiser_net, encoder_net, img_clean, img_lr, labels, augment_pipe):
         """
         Calculate the loss for corresponding to stochastic flow matching
 
         Parameters
         ----------
-            models: [torch.Tensor, torch.Tensor]
-                The denoiser and encoder networks making the predictions
-                Stored as [denoiser, encoder]
+            denoiser_net: torch.Tensor
+                The denoiser network making the predictions
+            encoder_net: torch.Tensor
+                The encoder network making the predictions
             img_clean: torch.Tensor
                 Input images (high resolution) to the neural network.
             img_lr: torch.Tensor
@@ -80,20 +81,20 @@ class SFMLoss:
             A tensor representing the combined loss calculated based on the flow matching
             encoder and denoiser networks
         """
-        denoiser_net, encoder_net = models
         #uniformly samples from 0 to 1 in torch
         if isinstance(denoiser_net, torch.nn.parallel.DistributedDataParallel):
             sigma_max_per_channel = denoiser_net.module.get_sigma_max().to(device=img_clean.device)
         else:
             sigma_max_per_channel = denoiser_net.get_sigma_max().to(device=img_clean.device)
 
+        # clamp to min value
         if len(self.sigma_min) > 1:
-            sigma_max_per_channel = torch.maximum(sigma_max, torch.tensor(self.sigma_min, device=img_clean.device))
+            sigma_max_per_channel = torch.maximum(sigma_max_per_channel, torch.tensor(self.sigma_min, device=img_clean.device))
             # Normalize from 0 to 1
             sigma_max = 1.0
         else:
             # just use the first value, ignore the rest
-            sigma_max = torch.maximum(sigma_max, torch.tensor(self.sigma_min, device=img_clean.device))[0]
+            sigma_max = torch.maximum(sigma_max_per_channel, torch.tensor(self.sigma_min, device=img_clean.device))[0]
 
         rnd_uniform = torch.rand([img_clean.shape[0], 1, 1, 1], device=img_clean.device)
 

@@ -20,7 +20,7 @@ hp:
     # Training duration based on the number of processed samples
     total_batch_size: 256
     # Total batch size
-    batch_size_per_gpu: "auto"
+    batch_size_per_gpu: 4 
     # Batch size per GPU
     lr: 0.0002
     # Learning rate
@@ -30,6 +30,10 @@ hp:
     # LR decay rate
     lr_rampup: 0
     # Rampup for learning rate, in number of samples
+    ema: 0.5
+    # EMA half-life
+    ema_rampup_ratio: 0.05
+    # EMA ramp-up coefficient, None = no rampup.
 
 # Performance
 perf:

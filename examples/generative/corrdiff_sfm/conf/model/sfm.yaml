@@ -24,17 +24,18 @@ encoder_loss_type: l2
 encoder_loss_weight: 0.25
 # Regularizer weight for the SFM model [null, float]
 
+sigma_min: [0.002, 0.002, 0.002, 0.002] # for sampling
+# Minimum value of the noise sigma
+
 model_args:
   dropout: 0.13
   # Dropout probability
-  sigma_min: [0.002, 0.002, 0.002, 0.002] # for sampling
-  # Minimum value of the noise sigma
   # Maximum value of the noise sigma
   sigma_max:
     initial_values: [1.0, 1.0, 1.0, 1.0]
     learnable: True
     # For learnable sigma_max
-    min_values: [0.05, 0.05, 0.05, 0.05]
+    #min_values: [0.05, 0.05, 0.05, 0.05]
     # Minimum value of sigma_max distribution (only if learnable)
     ema_weight: 0.99
     # EMA weight for sigma_max (only if learnable)
