@@ -35,7 +35,7 @@ model_args:
     initial_values: [1.0, 1.0, 1.0, 1.0]
     learnable: True
     # For learnable sigma_max
-    #min_values: [0.05, 0.05, 0.05, 0.05]
+    min_values: [0.05, 0.05, 0.05, 0.05]
     # Minimum value of sigma_max distribution (only if learnable)
     ema_weight: 0.99
     # EMA weight for sigma_max (only if learnable)

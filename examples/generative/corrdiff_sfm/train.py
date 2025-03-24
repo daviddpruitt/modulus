@@ -213,7 +213,7 @@ def main(cfg: DictConfig) -> None:
 
     # Enable distributed data parallel if applicable
     if dist.world_size > 1:
-        denoiser_net = DistributedDataParallel(
+        ddp_denoiser_net = DistributedDataParallel(
             denoiser_net,
             device_ids=[dist.local_rank],
             broadcast_buffers=True,
@@ -228,6 +228,9 @@ def main(cfg: DictConfig) -> None:
                 output_device=dist.device,
                 find_unused_parameters=dist.find_unused_parameters,
             )
+    else:
+        # for convenience when updating the denoiser sigma
+        ddp_denoiser_net = denoiser_net
 
     # Record the current time to measure the duration of subsequent operations.
     start_time = time.time()
@@ -249,7 +252,7 @@ def main(cfg: DictConfig) -> None:
     try:
         cur_nimg = load_checkpoint(
             path=checkpoint_dir,
-            models=[sfm_encoder, denoiser],
+            models=[denoiser_net, encoder_net],
             optimizer=optimizer,
             device=dist.device,
         )
@@ -280,7 +283,7 @@ def main(cfg: DictConfig) -> None:
             labels = labels.to(dist.device).contiguous()
             with torch.autocast("cuda", dtype=amp_dtype, enabled=enable_amp):
                 loss = loss_fn(
-                    denoiser_net=denoiser_net,
+                    denoiser_net=ddp_denoiser_net,
                     encoder_net=encoder_net,
                     img_clean=img_clean,
                     img_lr=img_lr,
@@ -384,7 +387,7 @@ def main(cfg: DictConfig) -> None:
                         )
                         labels_valid = labels_valid.to(dist.device).contiguous()
                         loss_valid = loss_fn(
-                            denoiser_net=denoiser_net,
+                            denoiser_net=ddp_denoiser_net,
                             encoder_net=encoder_net,
                             img_clean=img_clean_valid,
                             img_lr=img_lr_valid,
@@ -400,15 +403,14 @@ def main(cfg: DictConfig) -> None:
 
                         if cfg.model.name == "sfm":
                             rmse_encoder_valid = loss_fn_encoder(
-                                denoiser_net=denoiser_net,
+                                denoiser_net=ddp_denoiser_net,
                                 encoder_net=encoder_net,
                                 img_clean=img_clean_valid,
                                 img_lr=img_lr_valid,
                                 labels=labels_valid,
-                                augment_pipe=augment_pipe,
-                                loggers=None
+                                augment_pipe=None,
                             )
-                            rmse_encoder_valid_accum_mean += rmse_encoder_valid.mean((0,2,3)) / cfg.validation_steps
+                            rmse_encoder_valid_accum_mean += rmse_encoder_valid.mean((0,2,3)) / cfg.training.io.validation_steps
 
                     valid_loss_sum = torch.tensor(
                         [valid_loss_accum], device=dist.device
@@ -425,7 +427,7 @@ def main(cfg: DictConfig) -> None:
                         )
 
                 if dist.rank == 0:
-                    if cfg.model.name == "sfm" and cfg.model.sfm['sigma_max']['learnable']:
+                    if cfg.model.name == "sfm" and cfg.model.model_args['sigma_max']['learnable']:
                         denoiser_net.update_sigma_max(rmse_encoder_valid_accum_mean)
 
 

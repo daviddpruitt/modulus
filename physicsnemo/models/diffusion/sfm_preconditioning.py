@@ -102,6 +102,8 @@ class SFMPrecondSR(Module):
         else:    
             sigma_max_current = torch.tensor(sigma_max['initial_values'])
             self.register_buffer('sigma_max_current', sigma_max_current)
+            self.ema_weight = torch.tensor(sigma_max['ema_weight'])
+            self.min_values = torch.tensor(sigma_max['min_values'])
 
         # SongUNetPosEmbd
         if 'encoder_type' in model_kwargs:
@@ -125,11 +127,11 @@ class SFMPrecondSR(Module):
         sigma_max : float
             Maximum noise level
         """
-        ema_weight = torch.tensor(self.sigma_max['ema_weight']).to(self.sigma_max_current.device)
+        ema_weight = self.ema_weight.to(self.sigma_max_current.device)
         sigma_max = torch.tensor(sigma_max).to(self.sigma_max_current.device)
         # Update sigma_max_current without gradients
         new_sigma_max_current = ema_weight * self.sigma_max_current + (1 - ema_weight) * sigma_max
-        self.sigma_max_current = torch.max(new_sigma_max_current, torch.tensor(self.sigma_max['min_values']).to(self.sigma_max_current.device))
+        self.sigma_max_current = torch.max(new_sigma_max_current, self.min_values.to(self.sigma_max_current.device))
 
     def get_sigma_max(self):
         """ returns the current max sigma """
