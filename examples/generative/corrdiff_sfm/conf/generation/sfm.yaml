@@ -31,6 +31,8 @@ sampler:
   # Number of sampling steps
   sigma_min: 0.01
   # Lowest noise level
+  t_min: 0.002
+  # clamp time step to this value
 
 N_grid_channels: 4
 times_range: null
@@ -55,7 +57,7 @@ perf:
     # To support multiple workers a threadsafe version of the netCDF library must be used
 
 io:
-  encoder_ckpt_filename: Conv2dSerializable.0.5120.mdlus
+  encoder_ckpt_filename: Conv2dSerializable.0.895232.mdlus
     # Checkpoint filename for the diffusion model  
-  denoiser_ckpt_filename: EDMPrecondSR.0.5120.mdlus
+  denoiser_ckpt_filename: EDMPrecondSR.0.895232.mdlus
     # Checkpoint filename for the mean predictor model

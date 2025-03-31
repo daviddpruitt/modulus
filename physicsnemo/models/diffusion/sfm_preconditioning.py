@@ -36,7 +36,7 @@ network_module = importlib.import_module("modulus.models.diffusion")
 class SFMPrecondSRMetaData(ModelMetaData):
     """EDMPrecondSR meta data"""
 
-    name: str = "EDMPrecondSR"
+    name: str = "SFMPrecondSR"
     # Optimization
     jit: bool = False
     cuda_graphs: bool = False

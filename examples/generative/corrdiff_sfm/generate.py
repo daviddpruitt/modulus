@@ -28,10 +28,11 @@ from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from einops import rearrange
 from torch.distributed import gather
+import tqdm
 
 
 from hydra.utils import to_absolute_path
-from modulus.utils.generative import SFM_Euler_sampler, SFM_Euler_sampler_Adaptive_Sigma, StackedRandomGenerator,
+from modulus.utils.generative import SFM_Euler_sampler, SFM_Euler_sampler_Adaptive_Sigma, StackedRandomGenerator
 from modulus.utils.corrdiff import (
     NetCDFWriter,
     get_time_from_range,
@@ -103,7 +104,7 @@ def main(cfg: DictConfig) -> None:
 
     denoiser_ckpt_filename = cfg.generation.io.denoiser_ckpt_filename
     logger0.info(f'Loading residual network from "{denoiser_ckpt_filename}"...')
-    denoiser_net = Module.from_checkpoint(to_absolute_path(denoiser_net))
+    denoiser_net = Module.from_checkpoint(to_absolute_path(denoiser_ckpt_filename))
     denoiser_net = denoiser_net.eval().to(device).to(memory_format=torch.channels_last)
 
     if cfg.generation.perf.force_fp16:
@@ -115,11 +116,12 @@ def main(cfg: DictConfig) -> None:
         torch._dynamo.reset()
         encoder_net = torch.compile(encoder_net, mode="reduce-overhead")
         denoiser_net = torch.compile(denoiser_net, mode="reduce-overhead")
-        
+    networks = {'denoiser_net': denoiser_net, 'encoder_net': encoder_net}
+
     # Partially instantiate the sampler based on the configs
     if cfg.generation.inference_mode in ["sfm", "sfm_two_stage"]:
         if cfg.generation.learnable_sigma:
-            sampler_fn = SFM_Euler_sampler_Adaptive_Sigma,
+            sampler_fn = SFM_Euler_sampler_Adaptive_Sigma
         else:
             sampler_fn = SFM_Euler_sampler
     elif cfg.generation.inference_mode == "sfm_encoder":
@@ -131,21 +133,22 @@ def main(cfg: DictConfig) -> None:
     def generate_fn():
         img_shape_y, img_shape_x = img_shape
         with nvtx.annotate("generate_fn", color="green"):
+            all_images = []
             for batch_seeds in tqdm.tqdm(rank_batches, unit="batch", disable=(dist.rank != 0)):
-                with nvtx.annotate(f"generate {len(all_images)}", color="rapids"):
-                    batch_size = len(batch_seeds)
-                    if batch_size == 0:
-                        continue
-
-                with torch.inference_mode():
-                    images = sampler_fn(
-                        networks=networks,
-                        img_lr=img_lr,
-                        class_labels=class_labels,
-                        img_target=img_target,
-                        logger=logger,
-                        cfg=cfg,
-                    )
+                batch_size = len(batch_seeds)
+                if batch_size == 0:
+                    continue
+                rnd = StackedRandomGenerator(device, batch_seeds)
+                with nvtx.annotate(f"{cfg.generation.inference_mode} model", color="rapids"):
+                    with torch.inference_mode():
+                        images = sampler_fn(
+                            networks=networks,
+                            img_lr=image_lr,
+                            randn_like=rnd.randn_like,
+                            cfg=cfg.generation.sampler,
+                        )
+                    all_images.append(images)
+            image_out = torch.cat(all_images)
 
             # Gather tensors on rank 0
             if dist.world_size > 1:
@@ -226,6 +229,10 @@ def main(cfg: DictConfig) -> None:
                     image_lr.to(device=device)
                     .to(torch.float32)
                     .to(memory_format=torch.channels_last)
+                )
+                # expand to batch size
+                image_lr = (
+                    image_lr.expand(cfg.generation.seed_batch_size, -1, -1, -1).to(memory_format=torch.channels_last)
                 )
                 image_tar = image_tar.to(device=device).to(torch.float32)
                 image_out = generate_fn()

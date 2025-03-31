@@ -19,9 +19,9 @@ import torch
 import torch.nn as nn
 
 from modulus.models.diffusion import SongUNetPosEmbd
-from modulus.utils.generative import StackedRandomGenerator
+from collections.abc import Callable
 from omegaconf import DictConfig
-
+from typing import Dict
 
 def sigma(t):
     return t
@@ -35,7 +35,7 @@ def sigma_inv(sigma):
 def SFM_encoder_sampler(
     networks: Dict[str, torch.nn.Module],
     img_lr: torch.Tensor,
-    randn_like: StackedRandomGenerator = None,
+    randn_like: Callable = None,
     cfg: DictConfig = None,
 ):
     """
@@ -72,7 +72,7 @@ def SFM_encoder_sampler(
 def SFM_Euler_sampler(
     networks: Dict[str, torch.nn.Module],
     img_lr: torch.Tensor,
-    randn_like: StackedRandomGenerator,
+    randn_like: Callable,
     cfg: DictConfig,
 ):
     """
@@ -153,7 +153,7 @@ def SFM_Euler_sampler(
 def SFM_Euler_sampler_Adaptive_Sigma(
     networks: Dict[str, torch.nn.Module],
     img_lr: torch.Tensor,
-    randn_like: StackedRandomGenerator,
+    randn_like: Callable,
     cfg: DictConfig,
 ):
     """
