@@ -19,6 +19,8 @@ import torch
 import torch.nn as nn
 
 from modulus.models.diffusion import SongUNetPosEmbd
+from modulus.utils.generative import StackedRandomGenerator
+from omegaconf import DictConfig
 
 
 def sigma(t):
@@ -31,16 +33,27 @@ def sigma_inv(sigma):
 
 @nvtx.annotate(message="SFM_encoder_sampler", color="red")
 def SFM_encoder_sampler(
-    networks=None,
-    img_lr=None,
-    img_target=None,
-    latents=None,
-    class_labels=None,
-    sample_index=None,
-    randn_like=None,
-    logger=None,
-    cfg=None,
+    networks: Dict[str, torch.nn.Module],
+    img_lr: torch.Tensor,
+    randn_like: StackedRandomGenerator = None,
+    cfg: DictConfig = None,
 ):
+    """
+    Sampler for the SFM encoder, just runs the encoder
+
+    networks: Dict
+        A dictionary containing "encoder_net" and "denoiser_net" entries 
+        for the denoiser and encoder networks.
+        Note: denoiser_net is not used for SFM_encoder_sampler
+    img_lr: torch.tensor
+        The low resolution image used for denoising
+    randn_like: StackedRandomGenerator
+        The random noise generator used for denoising.
+        Note: not used for SFM_encoder_sampler
+    cfg: DictConfig
+        The configuration used for sampling
+        Note: not used for SFM_encoder_sampler
+    """
     encoder_net = networks["encoder_net"]
     x_low = img_lr
     # in V1 the encoder net was inside the denoiser
@@ -57,25 +70,29 @@ def SFM_encoder_sampler(
 
 @nvtx.annotate(message="SFM_Euler_sampler", color="red")
 def SFM_Euler_sampler(
-    networks=None,
-    img_lr=None,
-    img_target=None,
-    latents=None,
-    class_labels=None,
-    sample_index=None,
-    randn_like=None,
-    logger=None,
-    cfg=None,
+    networks: Dict[str, torch.nn.Module],
+    img_lr: torch.Tensor,
+    randn_like: StackedRandomGenerator,
+    cfg: DictConfig,
 ):
+    """
+    Sampler for the SFM encoder, just runs the encoder
+
+    networks: Dict
+        A dictionary containing "encoder_net" and "denoiser_net" entries 
+        for the denoiser and encoder networks.
+        Note: denoiser_net is not used for SFM_encoder_sampler
+    img_lr: torch.tensor
+        The low resolution image used for denoising
+    randn_like: StackedRandomGenerator
+        The random noise generator used for denoising.
+    cfg: DictConfig
+        The configuration used for sampling
+    """
     denoiser_net = networks["denoiser_net"]
     encoder_net = networks["encoder_net"]
 
     x_low = img_lr
-
-    if cfg.discretization not in ["edm"]:
-        raise ValueError(f"Unknown discretization {cfg.discretization}")
-    if cfg.schedule not in ["linear"]:
-        raise ValueError(f"Unknown schedule {cfg.schedule}")
 
     # Define time steps in terms of noise level.
     step_indices = torch.arange(cfg.num_steps, device=denoiser_net.device)
@@ -134,25 +151,29 @@ def SFM_Euler_sampler(
 
 @nvtx.annotate(message="SFM_Euler_sampler_Adaptive_Sigma", color="red")
 def SFM_Euler_sampler_Adaptive_Sigma(
-    networks=None,
-    img_lr=None,
-    img_target=None,
-    latents=None,
-    class_labels=None,
-    sample_index=None,
-    randn_like=None,
-    logger=None,
-    cfg=None,
+    networks: Dict[str, torch.nn.Module],
+    img_lr: torch.Tensor,
+    randn_like: StackedRandomGenerator,
+    cfg: DictConfig,
 ):
+    """
+    Sampler for the SFM encoder, just runs the encoder
+
+    networks: Dict
+        A dictionary containing "encoder_net" and "denoiser_net" entries 
+        for the denoiser and encoder networks.
+        Note: denoiser_net is not used for SFM_encoder_sampler
+    img_lr: torch.tensor
+        The low resolution image used for denoising
+    randn_like: StackedRandomGenerator
+        The random noise generator used for denoising.
+    cfg: DictConfig
+        The configuration used for sampling
+    """
     denoiser_net = networks["denoiser_net"]
     encoder_net = networks["encoder_net"]
 
     x_low = img_lr
-
-    if cfg.discretization not in ["edm"]:
-        raise ValueError(f"Unknown discretization {cfg.discretization}")
-    if cfg.schedule not in ["linear"]:
-        raise ValueError(f"Unknown schedule {cfg.schedule}")
 
     # Define time steps in terms of noise level.
     step_indices = torch.arange(cfg.num_steps, device=denoiser_net.device)
