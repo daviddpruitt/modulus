@@ -25,12 +25,12 @@ import nvtx
 import torch
 from torch import nn
 
-from modulus.models.diffusion import DhariwalUNet, SongUNet  # noqa: F401 for globals
-from modulus.models.meta import ModelMetaData
-from modulus.models.module import Module
-from modulus.models.diffusion import Conv2dSerializable
+from physicsnemo.models.diffusion import DhariwalUNet, SongUNet  # noqa: F401 for globals
+from physicsnemo.models.meta import ModelMetaData
+from physicsnemo.models.module import Module
+from physicsnemo.models.diffusion import Conv2dSerializable
 
-network_module = importlib.import_module("modulus.models.diffusion")
+network_module = importlib.import_module("physicsnemo.models.diffusion")
 
 @dataclass
 class SFMPrecondSRMetaData(ModelMetaData):

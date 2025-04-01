@@ -1,9 +1,9 @@
-import modulus.models.diffusion as diffusion
+import physicsnemo.models.diffusion as diffusion
 from dataclasses import dataclass
 from typing import Union
 import nvtx
-from modulus.models.meta import ModelMetaData
-from modulus.models.module import Module
+from physicsnemo.models.meta import ModelMetaData
+from physicsnemo.models.module import Module
 
 
 @dataclass

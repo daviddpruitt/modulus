@@ -18,7 +18,7 @@ import nvtx
 import torch
 import torch.nn as nn
 
-from modulus.models.diffusion import SongUNetPosEmbd
+from physicsnemo.models.diffusion import SongUNetPosEmbd
 from collections.abc import Callable
 from omegaconf import DictConfig
 from typing import Dict

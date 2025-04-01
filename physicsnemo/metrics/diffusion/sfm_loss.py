@@ -21,7 +21,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from modulus.models.diffusion import SongUNetPosEmbd
+from physicsnemo.models.diffusion import SongUNetPosEmbd
 
 
 class SFMLoss:

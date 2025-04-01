@@ -20,24 +20,24 @@ from hydra.utils import to_absolute_path
 from omegaconf import DictConfig, OmegaConf
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.tensorboard import SummaryWriter
-from modulus import Module
-from modulus.models.diffusion import (
+from physicsnemo import Module
+from physicsnemo.models.diffusion import (
     SongUNet,
     EDMPrecondSR,
     SFMPrecondSR,
     SFMPrecondEmpty,
 )
-from modulus.distributed import DistributedManager
-from modulus.launch.logging import PythonLogger, RankZeroLoggingWrapper
-from modulus.metrics.diffusion import (
+from physicsnemo.distributed import DistributedManager
+from physicsnemo.launch.logging import PythonLogger, RankZeroLoggingWrapper
+from physicsnemo.metrics.diffusion import (
     RegressionLoss,
     ResLoss,
     SFMLoss,
     #SFMLossSigmaPerChannel,
     SFMEncoderLoss,
 )
-from modulus.launch.logging import PythonLogger, RankZeroLoggingWrapper
-from modulus.launch.utils import load_checkpoint, save_checkpoint
+from physicsnemo.launch.logging import PythonLogger, RankZeroLoggingWrapper
+from physicsnemo.launch.utils import load_checkpoint, save_checkpoint
 # Load utilities from corrdiff examples, make the corrdiff path absolute to avoid issues
 #sys.path.append(sys.path.append(os.path.join(os.path.dirname(__file__), "../corrdiff"))  )
 from datasets.dataset import init_train_valid_datasets_from_config

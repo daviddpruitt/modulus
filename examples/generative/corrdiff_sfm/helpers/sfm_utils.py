@@ -14,8 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from modulus.models.diffusion import SongUNetPosEmbd
-from modulus.models.diffusion import Conv2dSerializable
+from physicsnemo.models.diffusion import SongUNetPosEmbd
+from physicsnemo.models.diffusion import Conv2dSerializable
 import torch
 
 
