@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES.
+# SPDX-FileCopyrightText: Copyright (c) 2023 - 2024 NVIDIA CORPORATION & AFFILIATES.
 # SPDX-FileCopyrightText: All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -14,14 +14,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Callable
+from typing import Dict
+
 import nvtx
 import torch
 import torch.nn as nn
+from omegaconf import DictConfig
 
 from physicsnemo.models.diffusion import SongUNetPosEmbd
-from collections.abc import Callable
-from omegaconf import DictConfig
-from typing import Dict
+
 
 def sigma(t):
     return t
@@ -42,7 +44,7 @@ def SFM_encoder_sampler(
     Sampler for the SFM encoder, just runs the encoder
 
     networks: Dict
-        A dictionary containing "encoder_net" and "denoiser_net" entries 
+        A dictionary containing "encoder_net" and "denoiser_net" entries
         for the denoiser and encoder networks.
         Note: denoiser_net is not used for SFM_encoder_sampler
     img_lr: torch.tensor
@@ -79,7 +81,7 @@ def SFM_Euler_sampler(
     Sampler for the SFM encoder, just runs the encoder
 
     networks: Dict
-        A dictionary containing "encoder_net" and "denoiser_net" entries 
+        A dictionary containing "encoder_net" and "denoiser_net" entries
         for the denoiser and encoder networks.
         Note: denoiser_net is not used for SFM_encoder_sampler
     img_lr: torch.tensor
@@ -160,7 +162,7 @@ def SFM_Euler_sampler_Adaptive_Sigma(
     Sampler for the SFM encoder, just runs the encoder
 
     networks: Dict
-        A dictionary containing "encoder_net" and "denoiser_net" entries 
+        A dictionary containing "encoder_net" and "denoiser_net" entries
         for the denoiser and encoder networks.
         Note: denoiser_net is not used for SFM_encoder_sampler
     img_lr: torch.tensor

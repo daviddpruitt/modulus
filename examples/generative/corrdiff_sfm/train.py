@@ -33,13 +33,14 @@ from physicsnemo.metrics.diffusion import (
     RegressionLoss,
     ResLoss,
     SFMLoss,
-    #SFMLossSigmaPerChannel,
+    # SFMLossSigmaPerChannel,
     SFMEncoderLoss,
 )
 from physicsnemo.launch.logging import PythonLogger, RankZeroLoggingWrapper
 from physicsnemo.launch.utils import load_checkpoint, save_checkpoint
+
 # Load utilities from corrdiff examples, make the corrdiff path absolute to avoid issues
-#sys.path.append(sys.path.append(os.path.join(os.path.dirname(__file__), "../corrdiff"))  )
+# sys.path.append(sys.path.append(os.path.join(os.path.dirname(__file__), "../corrdiff"))  )
 from datasets.dataset import init_train_valid_datasets_from_config
 from helpers.train_helpers import (
     set_patch_shape,
@@ -119,10 +120,12 @@ def main(cfg: DictConfig) -> None:
     img_shape = dataset.image_shape()
     img_out_channels = len(dataset.output_channels())
     patch_shape = (None, None)
-    
+
     # Instantiate the model and move to device.
     if cfg.model.name not in (
-        "sfm_encoder", "sfm", "sfm_two_stage",
+        "sfm_encoder",
+        "sfm",
+        "sfm_two_stage",
     ):
         raise ValueError("Invalid model")
     model_args = {  # default parameters for all networks
@@ -140,17 +143,17 @@ def main(cfg: DictConfig) -> None:
             "gridtype": "sinusoidal",
             "N_grid_channels": 4,
         },
-        "sfm_encoder": {}, # empty preconditioner
+        "sfm_encoder": {},  # empty preconditioner
     }
 
     model_args.update(standard_model_cfgs[cfg.model.name])
     if hasattr(cfg.model, "model_args"):  # override defaults from config file
         model_args.update(OmegaConf.to_container(cfg.model.model_args))
-    
+
     if cfg.model.name == "sfm_encoder":
         # should this be set to no_grad?
         denoiser_net = SFMPrecondEmpty()
-    else: # sfm or sfm_two_stage
+    else:  # sfm or sfm_two_stage
         denoiser_net = SFMPrecondSR(
             img_in_channels=img_in_channels + model_args["N_grid_channels"],
             **model_args,
@@ -169,9 +172,11 @@ def main(cfg: DictConfig) -> None:
         encoder_net = get_encoder(cfg)
         encoder_net.train().requires_grad_(True).to(dist.device)
         logger0.success("Constructed encoder network succesfully")
-    else: # "sfm_two_stage"
+    else:  # "sfm_two_stage"
         if not hasattr(cfg.training.io, "encoder_checkpoint_path"):
-            raise KeyError("Need to provide encoder_checkpoint_path when using sfm_two_stage")
+            raise KeyError(
+                "Need to provide encoder_checkpoint_path when using sfm_two_stage"
+            )
         encoder_checkpoint_path = to_absolute_path(
             cfg.training.io.encoder_checkpoint_path
         )
@@ -183,20 +188,19 @@ def main(cfg: DictConfig) -> None:
         encoder_net.eval().requires_grad_(False).to(dist.device)
         logger0.success("Loaded the pre-trained encoder network")
 
-
     # Instantiate the loss function(s)
     if cfg.model.name in ("sfm", "sfm_two_stage"):
         loss_fn = SFMLoss(
-            encoder_loss_type = cfg.model.encoder_loss_type,
-            encoder_loss_weight = cfg.model.encoder_loss_weight,
-            sigma_min = cfg.model.sigma_min,
+            encoder_loss_type=cfg.model.encoder_loss_type,
+            encoder_loss_weight=cfg.model.encoder_loss_weight,
+            sigma_min=cfg.model.sigma_min,
         )
         # with sfm the encoder and diffusion model are trained together
         if cfg.model.name == "sfm":
-            loss_fn_encoder = SFMEncoderLoss(encoder_loss_type='l2')
+            loss_fn_encoder = SFMEncoderLoss(encoder_loss_type="l2")
     elif cfg.model.name == "sfm_encoder":
         loss_fn = SFMEncoderLoss(
-            encoder_loss_type = cfg.model.encoder_loss_type,
+            encoder_loss_type=cfg.model.encoder_loss_type,
         )
     else:
         raise NotImplementedError(f"Model {cfg.model.name} not supported.")
@@ -246,7 +250,7 @@ def main(cfg: DictConfig) -> None:
     logger0.info(f"Using {num_accumulation_rounds} gradient accumulation rounds")
 
     ## Resume training from previous checkpoints if exists
-    ### TODO needs to be redone, need to store model + encoder + optimizer 
+    ### TODO needs to be redone, need to store model + encoder + optimizer
     if dist.world_size > 1:
         torch.distributed.barrier()
     try:
@@ -353,7 +357,9 @@ def main(cfg: DictConfig) -> None:
         # Update EMA.
         if ema_rampup_ratio is not None:
             ema_halflife_nimg = min(ema_halflife_nimg, cur_nimg * ema_rampup_ratio)
-        ema_beta = 0.5 ** (cfg.training.hp.total_batch_size / max(ema_halflife_nimg, 1e-8))
+        ema_beta = 0.5 ** (
+            cfg.training.hp.total_batch_size / max(ema_halflife_nimg, 1e-8)
+        )
         for p_ema, p_net in zip(denoiser_ema.parameters(), denoiser_net.parameters()):
             p_ema.copy_(p_net.detach().lerp(p_ema, ema_beta))
 
@@ -410,7 +416,10 @@ def main(cfg: DictConfig) -> None:
                                 labels=labels_valid,
                                 augment_pipe=None,
                             )
-                            rmse_encoder_valid_accum_mean += rmse_encoder_valid.mean((0,2,3)) / cfg.training.io.validation_steps
+                            rmse_encoder_valid_accum_mean += (
+                                rmse_encoder_valid.mean((0, 2, 3))
+                                / cfg.training.io.validation_steps
+                            )
 
                     valid_loss_sum = torch.tensor(
                         [valid_loss_accum], device=dist.device
@@ -427,9 +436,11 @@ def main(cfg: DictConfig) -> None:
                         )
 
                 if dist.rank == 0:
-                    if cfg.model.name == "sfm" and cfg.model.model_args['sigma_max']['learnable']:
+                    if (
+                        cfg.model.name == "sfm"
+                        and cfg.model.model_args["sigma_max"]["learnable"]
+                    ):
                         denoiser_net.update_sigma_max(rmse_encoder_valid_accum_mean)
-
 
         if is_time_for_periodic_task(
             cur_nimg,
@@ -487,7 +498,7 @@ def main(cfg: DictConfig) -> None:
 
     # Done.
     logger0.info("Training Completed.")
-    
+
 
 if __name__ == "__main__":
     main()

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023 - 2025 NVIDIA CORPORATION & AFFILIATES.
+# SPDX-FileCopyrightText: Copyright (c) 2023 - 2024 NVIDIA CORPORATION & AFFILIATES.
 # SPDX-FileCopyrightText: All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -17,9 +17,21 @@
 from physicsnemo.models.diffusion import SongUNetPosEmbd
 from physicsnemo.models.diffusion import Conv2dSerializable
 import torch
+from omegaconf import DictConfig
 
 
-def get_encoder(cfg):
+def get_encoder(cfg: DictConfig):
+    """
+    Helper that sets instantiates a
+
+    Parameters
+    ----------
+    cfg: DictConfig
+        configuration for the encoder
+
+    Returns
+    torch.nn.Module: The encoder
+    """
     in_channels = len(cfg.dataset["in_channels"])
     out_channels = len(cfg.dataset["out_channels"])
     encoder_type = cfg.model["encoder_type"]

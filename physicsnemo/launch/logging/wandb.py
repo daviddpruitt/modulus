@@ -23,9 +23,8 @@ from pathlib import Path
 from typing import Literal
 
 import wandb
-from wandb import AlertLevel
-
 from physicsnemo.distributed import DistributedManager
+from wandb import AlertLevel
 
 from .utils import create_ddp_group_tag
 

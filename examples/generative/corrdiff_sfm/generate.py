@@ -32,7 +32,12 @@ import tqdm
 
 
 from hydra.utils import to_absolute_path
-from physicsnemo.utils.generative import SFM_Euler_sampler, SFM_Euler_sampler_Adaptive_Sigma, StackedRandomGenerator, SFM_encoder_sampler
+from physicsnemo.utils.generative import (
+    SFM_Euler_sampler,
+    SFM_Euler_sampler_Adaptive_Sigma,
+    StackedRandomGenerator,
+    SFM_encoder_sampler,
+)
 from physicsnemo.utils.corrdiff import (
     NetCDFWriter,
     get_time_from_range,
@@ -88,12 +93,12 @@ def main(cfg: DictConfig) -> None:
     img_shape = dataset.image_shape()
     img_out_channels = len(dataset.output_channels())
 
-    # patching not supported for 
+    # patching not supported for
     patch_shape = (None, None)
     img_shape, patch_shape = set_patch_shape(img_shape, patch_shape)
 
     # Parse the inference mode
-    if cfg.generation.inference_mode not in  ["sfm", "sfm_encoder", "sfm_two_stage"]:
+    if cfg.generation.inference_mode not in ["sfm", "sfm_encoder", "sfm_two_stage"]:
         raise ValueError(f"Invalid inference mode {cfg.generation.inference_mode}")
 
     # Load networks, move to device, change precision
@@ -106,7 +111,9 @@ def main(cfg: DictConfig) -> None:
         denoiser_ckpt_filename = cfg.generation.io.denoiser_ckpt_filename
         logger0.info(f'Loading residual network from "{denoiser_ckpt_filename}"...')
         denoiser_net = Module.from_checkpoint(to_absolute_path(denoiser_ckpt_filename))
-        denoiser_net = denoiser_net.eval().to(device).to(memory_format=torch.channels_last)
+        denoiser_net = (
+            denoiser_net.eval().to(device).to(memory_format=torch.channels_last)
+        )
     else:
         denoiser_net = None
 
@@ -120,7 +127,7 @@ def main(cfg: DictConfig) -> None:
         encoder_net = torch.compile(encoder_net, mode="reduce-overhead")
         if denoiser_net:
             denoiser_net = torch.compile(denoiser_net, mode="reduce-overhead")
-    networks = {'denoiser_net': denoiser_net, 'encoder_net': encoder_net}
+    networks = {"denoiser_net": denoiser_net, "encoder_net": encoder_net}
 
     # Partially instantiate the sampler based on the configs
     if cfg.generation.inference_mode in ["sfm", "sfm_two_stage"]:
@@ -138,12 +145,16 @@ def main(cfg: DictConfig) -> None:
         img_shape_y, img_shape_x = img_shape
         with nvtx.annotate("generate_fn", color="green"):
             all_images = []
-            for batch_seeds in tqdm.tqdm(rank_batches, unit="batch", disable=(dist.rank != 0)):
+            for batch_seeds in tqdm.tqdm(
+                rank_batches, unit="batch", disable=(dist.rank != 0)
+            ):
                 batch_size = len(batch_seeds)
                 if batch_size == 0:
                     continue
                 rnd = StackedRandomGenerator(device, batch_seeds)
-                with nvtx.annotate(f"{cfg.generation.inference_mode} model", color="rapids"):
+                with nvtx.annotate(
+                    f"{cfg.generation.inference_mode} model", color="rapids"
+                ):
                     with torch.inference_mode():
                         images = sampler_fn(
                             networks=networks,
@@ -235,9 +246,9 @@ def main(cfg: DictConfig) -> None:
                     .to(memory_format=torch.channels_last)
                 )
                 # expand to batch size
-                image_lr = (
-                    image_lr.expand(cfg.generation.seed_batch_size, -1, -1, -1).to(memory_format=torch.channels_last)
-                )
+                image_lr = image_lr.expand(
+                    cfg.generation.seed_batch_size, -1, -1, -1
+                ).to(memory_format=torch.channels_last)
                 image_tar = image_tar.to(device=device).to(torch.float32)
                 image_out = generate_fn()
 
