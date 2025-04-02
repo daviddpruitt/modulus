@@ -1,0 +1,41 @@
+# SPDX-FileCopyrightText: Copyright (c) 2023 - 2025 NVIDIA CORPORATION & AFFILIATES.
+# SPDX-FileCopyrightText: All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: sfm_two_stage
+# Name of the model
+
+encoder_loss_type: l2
+# Regularizer for the SFM model [null, l2, l1]
+encoder_loss_weight: 0.25
+# Regularizer weight for the SFM model [null, float]
+
+sigma_min: [0.002, 0.002, 0.002, 0.002] # for sampling
+# Minimum value of the noise sigma
+
+model_args:
+  dropout: 0.13
+  # Dropout probability
+  # Maximum value of the noise sigma
+  sigma_max:
+    initial_values: [1.0, 1.0, 1.0, 1.0]
+    learnable: False
+    # For learnable sigma_max
+    min_values: [0.05, 0.05, 0.05, 0.05]
+    # Minimum value of sigma_max distribution (only if learnable)
+    ema_weight: 0.99
+    # EMA weight for sigma_max (only if learnable)
+  use_x_low_conditioning: False
+  # Conditioning for the diffusion model on the upsampled ERA data [True, False]

@@ -180,7 +180,7 @@ def main(cfg: DictConfig) -> None:
                 f"Expected this encoder checkpoint but not found: {encoder_checkpoint_path}"
             )
         encoder_net = Module.from_checkpoint(encoder_checkpoint_path)
-        encoder_net.eval().requires_grad_(False).to(device)
+        encoder_net.eval().requires_grad_(False).to(dist.device)
         logger0.success("Loaded the pre-trained encoder network")
 
 
@@ -474,9 +474,13 @@ def main(cfg: DictConfig) -> None:
             dist.rank,
             rank_0_only=True,
         ):
+            if cfg.model.name in ["sfm", "sfm_two_stage"]:
+                save_list = [denoiser_net, encoder_net]
+            else:
+                save_list = [encoder_net]
             save_checkpoint(
                 path=checkpoint_dir,
-                models=[denoiser_net, encoder_net],
+                models=save_list,
                 optimizer=optimizer,
                 epoch=cur_nimg,
             )

@@ -32,7 +32,7 @@ import tqdm
 
 
 from hydra.utils import to_absolute_path
-from physicsnemo.utils.generative import SFM_Euler_sampler, SFM_Euler_sampler_Adaptive_Sigma, StackedRandomGenerator
+from physicsnemo.utils.generative import SFM_Euler_sampler, SFM_Euler_sampler_Adaptive_Sigma, StackedRandomGenerator, SFM_encoder_sampler
 from physicsnemo.utils.corrdiff import (
     NetCDFWriter,
     get_time_from_range,
@@ -102,10 +102,13 @@ def main(cfg: DictConfig) -> None:
     encoder_net = Module.from_checkpoint(to_absolute_path(encoder_ckpt_filename))
     encoder_net = encoder_net.eval().to(device).to(memory_format=torch.channels_last)
 
-    denoiser_ckpt_filename = cfg.generation.io.denoiser_ckpt_filename
-    logger0.info(f'Loading residual network from "{denoiser_ckpt_filename}"...')
-    denoiser_net = Module.from_checkpoint(to_absolute_path(denoiser_ckpt_filename))
-    denoiser_net = denoiser_net.eval().to(device).to(memory_format=torch.channels_last)
+    if cfg.generation.inference_mode in ["sfm", "sfm_two_stage"]:
+        denoiser_ckpt_filename = cfg.generation.io.denoiser_ckpt_filename
+        logger0.info(f'Loading residual network from "{denoiser_ckpt_filename}"...')
+        denoiser_net = Module.from_checkpoint(to_absolute_path(denoiser_ckpt_filename))
+        denoiser_net = denoiser_net.eval().to(device).to(memory_format=torch.channels_last)
+    else:
+        denoiser_net = None
 
     if cfg.generation.perf.force_fp16:
         encoder_net.use_fp16 = True
@@ -115,7 +118,8 @@ def main(cfg: DictConfig) -> None:
     if cfg.generation.perf.use_torch_compile:
         torch._dynamo.reset()
         encoder_net = torch.compile(encoder_net, mode="reduce-overhead")
-        denoiser_net = torch.compile(denoiser_net, mode="reduce-overhead")
+        if denoiser_net:
+            denoiser_net = torch.compile(denoiser_net, mode="reduce-overhead")
     networks = {'denoiser_net': denoiser_net, 'encoder_net': encoder_net}
 
     # Partially instantiate the sampler based on the configs
@@ -127,7 +131,7 @@ def main(cfg: DictConfig) -> None:
     elif cfg.generation.inference_mode == "sfm_encoder":
         sampler_fn = SFM_encoder_sampler
     else:
-        raise ValueError(f"Unknown sampling method {cfg.sampling.type}")
+        raise ValueError(f"Unknown sampling method {cfg.generation.inference_mode}")
 
     # Main generation definition
     def generate_fn():
