@@ -42,23 +42,42 @@ class SFMLoss:
 
     def __init__(
         self,
-        encoder_loss_type: str,
-        encoder_loss_weight: float,
+        encoder_loss_type: str = "l2",
+        encoder_loss_weight: float = 0.1,
         sigma_min: Union[List[float], float] = 0.002,
         sigma_data: float = 0.5,
     ):
+        """
+        Loss function corresponding to Stochastic Flow matching
+
+        Parameters
+        ----------
+        encoder_loss_type: str, optional
+            Type of loss to use ["l1", "l2", None], defaults to 'l2'
+        encoder_loss_weight: float, optional
+            Regularizer loss weights, by defaults 0.1.
+        sigma_min: Union[List[float], float], optional
+            Minimum value of noise sigma, default 2e-3
+            Protects against values near zero that result in loss explosion.
+        sigma_data: float, optional
+            EDM weighting, default 0.5
+        """
         self.encoder_loss_type = encoder_loss_type
         self.encoder_loss_weight = encoder_loss_weight
         self.sigma_min = sigma_min
         self.sigma_data = sigma_data
 
-        if self.encoder_loss_weight is not None and self.encoder_loss_type is None:
+        if encoder_loss_type not in ["l1", "l2", None]:
             raise ValueError(
-                f"encoder_loss_weight is {self.encoder_loss_weight} but encoder_loss_type is None"
+                f"encoder_loss_type should be one of ['l1', 'l2', None] not {encoder_loss_type}"
             )
 
     def __call__(
-        self, denoiser_net, encoder_net, img_clean, img_lr, labels, augment_pipe
+        self,
+        denoiser_net: torch.nn.Module,
+        encoder_net: torch.nn.Module,
+        img_clean: torch.Tensor,
+        img_lr: torch.Tensor,
     ):
         """
         Calculate the loss for corresponding to stochastic flow matching
@@ -73,12 +92,6 @@ class SFMLoss:
                 Input images (high resolution) to the neural network.
             img_lr: torch.Tensor
                 Input images (low resolution) to the neural network.
-            labels: torch.Tensor
-                Ground truth labels for the input images.
-            augment_pipe: callable, optional
-                An optional data augmentation function that takes images as input and
-                returns augmented images. If not provided, no data augmentation is applied.
-
         Returns
         -------
             torch.Tensor
@@ -194,25 +207,24 @@ class SFMEncoderLoss:
         self.encoder_loss_type = encoder_loss_type
 
     def __call__(
-        self, denoiser_net, encoder_net, img_clean, img_lr, labels, augment_pipe
+        self,
+        denoiser_net: torch.nn.Module,
+        encoder_net: torch.nn.Module,
+        img_clean: torch.Tensor,
+        img_lr: torch.Tensor,
     ):
         """
         Calculate the loss for the enoder used in stochastic flow matching
 
         Parameters
         ----------
-            models: [torch.Tensor, torch.Tensor]
-                The denoiser and encoder networks making the predictions
-                Stored as [denoiser, encoder]
-            img_clean: torch.Tensor
-                Input images (high resolution) to the neural network.
-            img_lr: torch.Tensor
-                Input images (low resolution) to the neural network.
-            labels: torch.Tensor
-                Ground truth labels for the input images.
-            augment_pipe: callable, optional
-                An optional data augmentation function that takes images as input and
-                returns augmented images. If not provided, no data augmentation is applied.
+        models: [torch.Tensor, torch.Tensor]
+            The denoiser and encoder networks making the predictions
+            Stored as [denoiser, encoder]
+        img_clean: torch.Tensor
+            Input images (high resolution) to the neural network.
+        img_lr: torch.Tensor
+            Input images (low resolution) to the neural network.
 
         Returns
         -------
