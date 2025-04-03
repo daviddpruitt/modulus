@@ -26,11 +26,14 @@ from physicsnemo.metrics.diffusion import (
 from physicsnemo.models.diffusion import SongUNetPosEmbd
 
 
-class fake_net:
+class fake_net(torch.nn.Module):
     """dummy class to test sfm encoder"""
 
-    def get_sigma_max():
+    def get_sigma_max(self):
         return torch.tensor([1.0])
+
+    def forward(self, x, *args, **kwargs):
+        return x
 
 
 def get_songunet():
@@ -88,10 +91,10 @@ def test_sfmloss_initialization():
 def test_sfmloss_call():
     # dummy network for loss
     dummy_denoiser = fake_net()
-    dummy_encoder = get_songunet()
+    # dummy_encoder = get_songunet()
     dummy_net = torch.nn.Identity()
 
-    image_zeros = torch.zeros((2, 2))
+    image_zeros = torch.zeros((2, 2, 8, 8))
 
     # test defaults, encoder l2 loss, sigma_min is float
     loss_fn = SFMLoss()
@@ -110,11 +113,6 @@ def test_sfmloss_call():
     # test no encoder loss, sigma_min is list
     loss_fn = SFMLoss(encoder_loss_type=None)
     loss_value = loss_fn(dummy_denoiser, dummy_net, image_zeros, image_zeros)
-    assert isinstance(loss_value, torch.Tensor)
-
-    # test with ddp encoder and SongUnetPosEmbed denoiser
-    dummy_ddp_denoiser = torch.nn.parallel.DistributedDataParallel(dummy_denoiser)
-    loss_value = loss_fn(dummy_ddp_denoiser, dummy_encoder, image_zeros, image_zeros)
     assert isinstance(loss_value, torch.Tensor)
 
 

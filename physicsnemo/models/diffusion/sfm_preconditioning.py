@@ -67,7 +67,7 @@ class SFMPrecondSR(Module):
         Number of output color channels.
     use_fp16 : bool
         Execute the underlying model at FP16 precision?, by default False.
-    sigma_max : float
+    sigma_max : Union[dict, float]
         Maximum supported noise level, by default inf.
     sigma_data : float
         Expected standard deviation of the training data, by default 0.5.
@@ -84,7 +84,7 @@ class SFMPrecondSR(Module):
         img_out_channels: int,
         use_fp16: bool = False,
         N_grid_channels: int = 0,
-        sigma_max: float = float("inf"),
+        sigma_max: Union[dict, float] = float("inf"),
         sigma_data: float = 0.5,
         model_type: str = "SongUNetPosEmbd",
         use_x_low_conditioning=None,

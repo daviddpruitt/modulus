@@ -109,7 +109,7 @@ class SFMLoss:
             )
 
         # clamp to min value
-        if len(self.sigma_min) > 1:
+        if not isinstance(self.sigma_min, float) and len(self.sigma_min) > 1:
             sigma_max_per_channel = torch.maximum(
                 sigma_max_per_channel,
                 torch.tensor(self.sigma_min, device=img_clean.device),
@@ -153,7 +153,7 @@ class SFMLoss:
 
         # we don't subtract x_0, this will be done in the sampler
         x_t = ((1 - time) * x_0) + (time * x_1)
-        if len(self.sigma_min) > 1:
+        if not isinstance(self.sigma_min, float) and len(self.sigma_min) > 1:
             sigma_t = (
                 sigma_max_per_channel.unsqueeze(0).unsqueeze(2).unsqueeze(2)
                 * sampled_sigma
@@ -199,7 +199,7 @@ class SFMEncoderLoss:
         Type of loss to use ["l1", "l2", None]
     """
 
-    def __init__(self, encoder_loss_type: str, **kwargs):
+    def __init__(self, encoder_loss_type: str = "l2", **kwargs):
         if encoder_loss_type not in ["l1", "l2"]:
             raise ValueError(
                 f"encoder_loss_type should be either l1 or l2 not {encoder_loss_type}"
