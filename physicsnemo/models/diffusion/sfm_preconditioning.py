@@ -101,6 +101,9 @@ class SFMPrecondSR(Module):
 
         if isinstance(sigma_max, float):
             self.sigma_max_current = torch.tensor(sigma_max)
+            # disable weighted updates, let that be handled externally
+            self.ema_weight = torch.tensor(0.0)
+            self.min_values = torch.tensor(0.0)
         else:
             sigma_max_current = torch.tensor(sigma_max["initial_values"])
             self.register_buffer("sigma_max_current", sigma_max_current)
@@ -148,7 +151,7 @@ class SFMPrecondSR(Module):
     def forward(
         self,
         x: torch.Tensor,
-        sigma,
+        sigma: torch.Tensor,
         condition: torch.Tensor,
         force_fp32: bool = False,
         **model_kwargs,
@@ -202,7 +205,21 @@ class SFMPrecondSR(Module):
         D_x = c_skip * x + c_out * F_x.to(torch.float32)
         return D_x
 
-    def round_sigma(self, sigma):
+    def round_sigma(self, sigma: Union[List[float], torch.Tensor]):
+        """
+        Convert a given sigma value(s) to a tensor representation in the
+                same precision as the model
+
+        Parameters
+        ----------
+        sigma : Union[float list, torch.Tensor]
+            The sigma value(s) to convert.
+
+        Returns
+        -------
+        torch.Tensor
+            The tensor representation of the provided sigma value(s).
+        """
         return torch.as_tensor(sigma)
 
 

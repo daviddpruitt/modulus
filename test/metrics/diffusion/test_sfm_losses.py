@@ -39,8 +39,8 @@ class fake_net(torch.nn.Module):
 def get_songunet():
     """helper that creates a songunet for testing"""
     songunet_kwargs = {
-        "img_resolution": 64,
-        "in_channels": 4,
+        "img_resolution": 8,
+        "in_channels": 2,
         "out_channels": 4,
         "embedding_type": "zero",
         "label_dim": 0,
@@ -48,7 +48,7 @@ def get_songunet():
         "decoder_type": "standard",
         "channel_mult_noise": 1,
         "resample_filter": [1, 1],
-        "channel_mult": [1, 2, 2, 4, 4],
+        "channel_mult": [1, 2, 2],
         "attn_resolutions": [28],
         "N_grid_channels": 0,
         "model_channels": 4,
@@ -57,6 +57,8 @@ def get_songunet():
 
 
 def test_sfmloss_initialization():
+    """checks SFMLoss __init__"""
+
     loss_fn = SFMLoss()
 
     assert loss_fn.encoder_loss_type == "l2"
@@ -89,12 +91,15 @@ def test_sfmloss_initialization():
 
 
 def test_sfmloss_call():
+    """checks SFMLoss __call__"""
+
     # dummy network for loss
     dummy_denoiser = fake_net()
-    # dummy_encoder = get_songunet()
+    dummy_encoder = get_songunet()
     dummy_net = torch.nn.Identity()
 
-    image_zeros = torch.zeros((2, 2, 8, 8))
+    image_zeros = torch.zeros((2, 4, 8, 8))
+    image_rnd = torch.rand((2, 2, 8, 8))
 
     # test defaults, encoder l2 loss, sigma_min is float
     loss_fn = SFMLoss()
@@ -106,7 +111,7 @@ def test_sfmloss_call():
     assert isinstance(loss_value, torch.Tensor)
 
     # test encoder l1 loss, sigma_min is list
-    loss_fn = SFMLoss(encoder_loss_type="l1", sigma_min=[0.001, 0.001])
+    loss_fn = SFMLoss(encoder_loss_type="l1", sigma_min=[0.001, 0.001, 0.001, 0.001])
     loss_value = loss_fn(dummy_denoiser, dummy_net, image_zeros, image_zeros)
     assert isinstance(loss_value, torch.Tensor)
 
@@ -115,8 +120,13 @@ def test_sfmloss_call():
     loss_value = loss_fn(dummy_denoiser, dummy_net, image_zeros, image_zeros)
     assert isinstance(loss_value, torch.Tensor)
 
+    # testing using songunet and no encoder loss
+    loss_value = loss_fn(dummy_denoiser, dummy_encoder, image_zeros, image_rnd)
+    assert isinstance(loss_value, torch.Tensor)
+
 
 def test_sfmencoderloss_initialization():
+    """checks SFMEncoderLoss __init__"""
     loss_fn = SFMEncoderLoss()
 
     assert loss_fn.encoder_loss_type == "l2"
@@ -132,13 +142,16 @@ def test_sfmencoderloss_initialization():
 
 
 def test_sfmencoderloss_call():
+    """checks SFMEncoderLoss __call__"""
     # dummy network for loss
     dummy_net = torch.nn.Identity()
+    dummy_encoder = get_songunet()
 
-    image_zeros = torch.zeros((2, 2))
-    image_twos = torch.ones((2, 2)) * 2
+    image_zeros = torch.zeros((2, 4, 8, 8))
+    image_twos = torch.ones((2, 4, 8, 8)) * 2
+    image_rnd = torch.rand((2, 2, 8, 8))
 
-    # test l1 loss
+    # test l2 loss
     loss_fn = SFMEncoderLoss()
 
     # encoder loss is deterministic
@@ -148,7 +161,7 @@ def test_sfmencoderloss_call():
     loss_value = loss_fn(dummy_net, dummy_net, image_zeros, image_twos)
     assert torch.equal(loss_value, image_twos * image_twos)
 
-    # test l2 loss
+    # test l1 loss
     loss_fn = SFMEncoderLoss("l1")
 
     # encoder loss is deterministic
@@ -157,3 +170,7 @@ def test_sfmencoderloss_call():
 
     loss_value = loss_fn(dummy_net, dummy_net, image_zeros, image_twos)
     assert torch.equal(loss_value, image_twos)
+
+    # using songunet
+    loss_value = loss_fn(dummy_net, dummy_encoder, image_twos, image_rnd)
+    assert isinstance(loss_value, torch.Tensor)
