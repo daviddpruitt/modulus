@@ -284,15 +284,12 @@ def main(cfg: DictConfig) -> None:
             img_clean, img_lr, labels = next(dataset_iterator)
             img_clean = img_clean.to(dist.device).to(torch.float32).contiguous()
             img_lr = img_lr.to(dist.device).to(torch.float32).contiguous()
-            labels = labels.to(dist.device).contiguous()
             with torch.autocast("cuda", dtype=amp_dtype, enabled=enable_amp):
                 loss = loss_fn(
                     denoiser_net=ddp_denoiser_net,
                     encoder_net=encoder_net,
                     img_clean=img_clean,
                     img_lr=img_lr,
-                    labels=labels,
-                    augment_pipe=None,
                 )
             loss = loss.sum() / batch_size_per_gpu
             loss_accum += loss / num_accumulation_rounds
@@ -391,14 +388,11 @@ def main(cfg: DictConfig) -> None:
                         img_lr_valid = (
                             img_lr_valid.to(dist.device).to(torch.float32).contiguous()
                         )
-                        labels_valid = labels_valid.to(dist.device).contiguous()
                         loss_valid = loss_fn(
                             denoiser_net=ddp_denoiser_net,
                             encoder_net=encoder_net,
                             img_clean=img_clean_valid,
                             img_lr=img_lr_valid,
-                            labels=labels_valid,
-                            augment_pipe=None,
                         )
                         loss_valid = (
                             (loss_valid.sum() / batch_size_per_gpu).cpu().item()
@@ -413,8 +407,6 @@ def main(cfg: DictConfig) -> None:
                                 encoder_net=encoder_net,
                                 img_clean=img_clean_valid,
                                 img_lr=img_lr_valid,
-                                labels=labels_valid,
-                                augment_pipe=None,
                             )
                             rmse_encoder_valid_accum_mean += (
                                 rmse_encoder_valid.mean((0, 2, 3))
