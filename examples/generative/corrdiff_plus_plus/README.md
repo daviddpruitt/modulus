@@ -19,7 +19,7 @@ To overcome these limitations, **CorDiff++** was introduced at NVIDIA. It relies
 
 AFM outperforms previous methods across both real-world (e.g., 25 → 2 km super-resolution in Taiwan) and synthetic (Kolmogorov flow) benchmarks—especially for highly stochastic output channels.
 
-📄 For details, see the [AFM paper (arXiv:2410.19814)](https://arxiv.org/abs/2410.19814).
+📄 For details, see the [SFM paper (arXiv:2410.19814)](https://arxiv.org/abs/2410.19814).
 
 <p align="center">
 <img src="../../../docs/img/sfm_model.png"/>
