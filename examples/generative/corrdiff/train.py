@@ -268,6 +268,7 @@ def main(cfg: DictConfig) -> None:
     elif cfg.model.name == "lt_aware_ce_regression":
         loss_fn = RegressionLossCE(prob_channels=prob_channels)
 
+    # Instantiate the optimizer
     optimizer = torch.optim.Adam(
         params=model.parameters(), lr=cfg.training.hp.lr, betas=[0.9, 0.999], eps=1e-8
     )
